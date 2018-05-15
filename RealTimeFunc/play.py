@@ -2,7 +2,7 @@ import pyaudio
 import wave
 
 CHUNK = 1024
-filename="wav/gucyo.wav"
+filename="wav/sample.wav"
 
 wf = wave.open(filename, 'rb')
 

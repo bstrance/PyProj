@@ -103,3 +103,4 @@ ENV/
 # USER
 *.wav
 *.mp3
+.vscode/
