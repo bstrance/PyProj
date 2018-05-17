@@ -84,7 +84,7 @@ def pack_data(data, CHUNK:int, channel_number:int=0):
 
 def limmiter(data,CHUNK ,ch_number:int=0):
     """Limmit(-1 ~ 1)"""
-    if (ch_number == 2& ):
+    if (ch_number == 2):
         for i in range(CHUNK):
             if  (data[0][i] < -1):
                 data[0][i] = -1
