@@ -4,8 +4,15 @@ import struct
 import numpy
 from pylab import *
 
-def unpack_chunk(data_chunk:list, CHUNK:int, channel_number:int=0):
-    """ Return chunk by Stereo or MONO depending on channel number."""
+def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
+    """ Return chunk by Stereo or MONO depending on channel number.
+        Parameters
+        ----------
+        data_chunk : list\n
+        CHUNK       : int\n
+        Chunk size.Default 1024.\n
+        channel_number : int\n
+    """
     # Unpack
     # fromiter()より10^6倍アクセスが早い
     try:
@@ -25,7 +32,13 @@ def unpack_chunk(data_chunk:list, CHUNK:int, channel_number:int=0):
     return _unpack_data, _data_size
 
 def pack_data(data:bytes, data_size:int, channel_number:int=0):
-    """ packing data chunk. """
+    """ packing data to binary chunk.
+        Parameters
+        ----------
+        data    : bytes\n
+        data_size   :  int\n
+        channel_number  : int\n
+    """
     # Join Stereo data
     if (channel_number == 2): #STEREO
         try:
@@ -47,7 +60,13 @@ def pack_data(data:bytes, data_size:int, channel_number:int=0):
     return _pack_data
 
 def limmiter(data:bytes, data_size:int, ch_number:int=0):
-    """Limmit(-1 ~ 1)"""
+    """ Limmiter(-1 ~ 1) normalizing.
+        Parameters
+        ----------
+        data    : bytes\n
+        data_size : int\n
+        ch_number : int\n
+    """
     if (ch_number == 2):
         for i in range(data_size):
             if  (data[0][i] < -1):
@@ -71,7 +90,7 @@ def limmiter(data:bytes, data_size:int, ch_number:int=0):
     return data
 
 def plot_wave(data):
-    """Plot wave for matplotlib"""
+    """ Plot wave for matplotlib"""
     import matplotlib
     subplot(211)
     plot(data)
@@ -81,7 +100,14 @@ def plot_wave(data):
     axis([0, 140000, -1.0, 1.0])
     show()
 
-def real_time_prosess(wavfile:str, CHUNK):
+def real_time_prosess(wavfile:str, CHUNK:int):
+    """ Real time prosess.
+        Parameters
+        ----------
+        wavefile    : str\n
+        CHUNK       : int\n
+    """
+
     wf = wave.open(wavfile, 'rb')
     p = pyaudio.PyAudio()
     ch_num = wf.getnchannels()
