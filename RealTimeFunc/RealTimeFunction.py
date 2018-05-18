@@ -4,44 +4,7 @@ import struct
 import numpy
 from pylab import *
 
-def real_time_prosess(wavfile:str, CHUNK):
-    wf = wave.open(wavfile, 'rb')
-    p = pyaudio.PyAudio()
-    ch_num = wf.getnchannels()
-    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                    channels=wf.getnchannels(),
-                    rate=wf.getframerate(),
-                    output=True)
-
-    # Real time function
-    data_chunk = wf.readframes(CHUNK)
-    while stream.is_active(): #wave moduleのバグでis_activeの同期が取れていない。
-        # unpack chunk
-        data = unpack_chunk(data_chunk, CHUNK, ch_num)
-
-        # Entry original function#####
-        moddata = data
-        for l in range(CHUNK):
-            #Gain up(-6dB)
-            moddata[0][l] = moddata[0][l] * 0.5
-            moddata[1][l] = moddata[1][l] * 0.5
-
-        # Limitter(-1 ~ 1)
-        moddata = limmiter(moddata, CHUNK, ch_num)
-        #############################
-
-        # unpack chunk
-        data_chunk = pack_data(moddata, CHUNK, ch_num)
-
-        if (data_chunk != -1):
-            stream.write(data_chunk)
-            data_chunk = wf.readframes(CHUNK)
-        else:
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
-
-def unpack_chunk(data_chunk, CHUNK:int, channel_number:int=0):
+def unpack_chunk(data_chunk:list, CHUNK:int, channel_number:int=0):
     """ Return chunk by Stereo or MONO depending on channel number."""
     # Unpack
     # fromiter()より10^6倍アクセスが早い
@@ -52,19 +15,21 @@ def unpack_chunk(data_chunk, CHUNK:int, channel_number:int=0):
     if(channel_number == 2): #STEREO
         _unpack_data = np.empty((2, CHUNK))
         _unpack_data = [data_chunk[::2], data_chunk[1::2]]
+        _data_size = len(_unpack_data[0])
     elif(channel_number == 1): #MONO
         _unpack_data = data_chunk
+        _data_size = len(_unpack_data)
     else:
         _unpack_data = -1
         print("The number of channels is not defined.")
-    return _unpack_data
+    return _unpack_data, _data_size
 
-def pack_data(data, CHUNK:int, channel_number:int=0):
+def pack_data(data:bytes, data_size:int, channel_number:int=0):
     """ packing data chunk. """
     # Join Stereo data
     if (channel_number == 2): #STEREO
         try:
-            _pack_data = np.empty(CHUNK*2) # 2ch(LR)
+            _pack_data = np.empty(data_size*2) # 2ch(LR)
             _pack_data[::2] = data[0]
             _pack_data[1::2] = data[1]
         except ValueError:
@@ -81,21 +46,21 @@ def pack_data(data, CHUNK:int, channel_number:int=0):
     _pack_data = struct.pack("h" * len(_pack_data), *_pack_data)
     return _pack_data
 
-def limmiter(data,CHUNK ,ch_number:int=0):
+def limmiter(data:bytes, data_size:int, ch_number:int=0):
     """Limmit(-1 ~ 1)"""
     if (ch_number == 2):
-        for i in range(CHUNK):
+        for i in range(data_size):
             if  (data[0][i] < -1):
                 data[0][i] = -1
             elif(data[0][i] > 1):
                 data[0][i] = 1
-        for j in range(CHUNK):
+        for j in range(data_size):
             if  (data[1][j] < -1):
                 data[1][j] = -1
             elif(data[1][j] > 1):
                 data[1][j] = 1
     elif (ch_number == 1):
-        for k in range(CHUNK):
+        for k in range(data_size):
             if  (data[k] < -1):
                 data[k] = -1
             elif(data[k] > 1):
@@ -115,6 +80,46 @@ def plot_wave(data):
     plot(data)
     axis([0, 140000, -1.0, 1.0])
     show()
+
+def real_time_prosess(wavfile:str, CHUNK):
+    wf = wave.open(wavfile, 'rb')
+    p = pyaudio.PyAudio()
+    ch_num = wf.getnchannels()
+    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                    channels=wf.getnchannels(),
+                    rate=wf.getframerate(),
+                    output=True)
+
+    # Real time function
+    data_chunk = wf.readframes(CHUNK)
+    while len(data_chunk) != 0:#wave moduleのバグでis_activeだと同期が取れない。
+        # unpack chunk
+        data, data_size = unpack_chunk(data_chunk, CHUNK, ch_num)
+
+        # Entry original function#####
+        moddata = data
+        #Gain down(-6dB)
+        for l in range(data_size):
+            moddata[0][l] = moddata[0][l] * 0.5
+            moddata[1][l] = moddata[1][l] * 0.5
+
+        # Limitter(-1 ~ 1)
+        moddata = limmiter(moddata, data_size, ch_num)
+        #############################
+
+        # unpack chunk
+        data_chunk = pack_data(moddata, data_size, ch_num)
+
+        if (data_chunk != -1):
+            stream.write(data_chunk)
+            data_chunk = wf.readframes(CHUNK)
+        else:
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
 
 if __name__ == '__main__':
 
