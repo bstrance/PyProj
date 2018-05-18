@@ -7,23 +7,22 @@ from pylab import *
 def real_time_prosess(wavfile:str, CHUNK):
     wf = wave.open(wavfile, 'rb')
     p = pyaudio.PyAudio()
+    ch_num = wf.getnchannels()
     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                     channels=wf.getnchannels(),
                     rate=wf.getframerate(),
                     output=True)
-    ch_num = wf.getnchannels()
 
+    # Real time function
     data_chunk = wf.readframes(CHUNK)
     while stream.is_active(): #wave moduleのバグでis_activeの同期が取れていない。
         # unpack chunk
         data = unpack_chunk(data_chunk, CHUNK, ch_num)
-        if (ch_num == 2 & data[0] > CHUNK | ch_num == 1 & data > CHUNK):
-            break
 
         # Entry original function#####
-        #Gain up(-6dB)
         moddata = data
         for l in range(CHUNK):
+            #Gain up(-6dB)
             moddata[0][l] = moddata[0][l] * 0.5
             moddata[1][l] = moddata[1][l] * 0.5
 
