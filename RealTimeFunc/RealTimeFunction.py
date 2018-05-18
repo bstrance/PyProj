@@ -1,8 +1,7 @@
 import wave
 import pyaudio
 import struct
-import numpy
-from pylab import *
+import numpy as np
 
 def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
     """ Return chunk by Stereo or MONO depending on channel number.
@@ -16,7 +15,7 @@ def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
     # Unpack
     # fromiter()より10^6倍アクセスが早い
     try:
-        data_chunk = frombuffer(data_chunk, dtype="int16") / 32768.0 # Normalize -1~1
+        data_chunk = np.frombuffer(data_chunk, dtype="int16") / 32768.0 # Normalize -1~1
     except AttributeError:
         return -1
     if(channel_number == 2): #STEREO
@@ -91,7 +90,7 @@ def limmiter(data:bytes, data_size:int, ch_number:int=0):
 
 def plot_wave(data):
     """ Plot wave for matplotlib"""
-    import matplotlib
+    from pylab import *
     subplot(211)
     plot(data)
     axis([0, 140000, -1.0, 1.0])
