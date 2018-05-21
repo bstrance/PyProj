@@ -104,3 +104,4 @@ ENV/
 *.wav
 *.mp3
 .vscode/
+effectpy/

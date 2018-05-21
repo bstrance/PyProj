@@ -2,6 +2,16 @@ import wave
 import pyaudio
 import struct
 import numpy as np
+from pylab import *
+from effectpy import biQuad
+
+__author__ = "Hitoki Yamada"
+__status__ = "Prototype"
+__version__ = "0.0.1"
+__date__ = "2018.1.11"
+
+data_buff = np.array([[0.0, 0.0],[0.0, 0.0]]) # [[One before L,two before L],[[One before R,two before R]
+mod_buff = np.array([[0.0, 0.0],[0.0, 0.0]]) # [[One before L,two before L],[[One before R,two before R]
 
 def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
     """ Return chunk by Stereo or MONO depending on channel number.
@@ -27,7 +37,7 @@ def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
         _data_size = len(_unpack_data)
     else:
         _unpack_data = -1
-        print("The number of channels is not defined.")
+        print("The number of channel is incorrect.")
     return _unpack_data, _data_size
 
 def pack_data(data:bytes, data_size:int, channel_number:int=0):
@@ -49,7 +59,7 @@ def pack_data(data:bytes, data_size:int, channel_number:int=0):
     elif (channel_number == 1): #MONO
         _pack_data = data
     else:
-        print("The number of channels is not defined.")
+        print("The number of channel is incorrect.")
         return -1
 
     # Denormalize
@@ -57,6 +67,18 @@ def pack_data(data:bytes, data_size:int, channel_number:int=0):
     # Packing binary
     _pack_data = struct.pack("h" * len(_pack_data), *_pack_data)
     return _pack_data
+
+def gain_make(data:bytes, data_size:int, ch_number:int=0):
+    for l in range(data_size):
+        if(ch_number != 1):
+            for n in range(ch_number):
+                data[n][l] = data[n][l] * 0.6
+        elif(ch_number == 1):
+            data[l] = data[l] * 0.6
+        else:
+            data = -1
+            print("The number of channel is incorrect.")
+    return data
 
 def limmiter(data:bytes, data_size:int, ch_number:int=0):
     """ Limmiter(-1 ~ 1) normalizing.
@@ -85,12 +107,11 @@ def limmiter(data:bytes, data_size:int, ch_number:int=0):
                 data[k] = 1
     else:
         data = -1
-        print("The number of channels is not defined.")
+        print("The number of channel is incorrect.")
     return data
 
 def plot_wave(data):
     """ Plot wave for matplotlib"""
-    from pylab import *
     subplot(211)
     plot(data)
     axis([0, 140000, -1.0, 1.0])
@@ -110,27 +131,38 @@ def real_time_prosess(wavfile:str, CHUNK:int):
     wf = wave.open(wavfile, 'rb')
     p = pyaudio.PyAudio()
     ch_num = wf.getnchannels()
+    f_rate = wf.getframerate()
     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                    channels=wf.getnchannels(),
-                    rate=wf.getframerate(),
+                    channels=ch_num,
+                    rate=f_rate,
                     output=True)
 
     # Real time function
     data_chunk = wf.readframes(CHUNK)
     while len(data_chunk) != 0:#wave moduleのバグでis_activeだと同期が取れない。
-        # unpack chunk
+        # Unpack chunk
         data, data_size = unpack_chunk(data_chunk, CHUNK, ch_num)
 
         # Entry original function#####
         moddata = data
-        #Gain down(-6dB)
-        for l in range(data_size):
-            moddata[0][l] = moddata[0][l] * 0.5
-            moddata[1][l] = moddata[1][l] * 0.5
 
+        # Create Low pass filter coeff
+        # coeff = biQuad(f_rate).bq_lowpass(600, 0.7892)
+
+        # for i in range(data_size):
+        #     for j in range(ch_num):
+        #         moddata[j][i] = coeff[1][0] * data[j][i] + coeff[1][1] * data_buff[j][0] + coeff[1][2] \
+        #                     * data_buff[j][1] - coeff[0][1] * mod_buff[j][0] - coeff[0][2] * mod_buff[j][1]
+        #         data_buff[j][1] = data_buff[0][0]
+        #         data_buff[j][0] = moddata[0][i]
+        #         print(moddata)
+
+        #Gain make up
+        moddata = gain_make(moddata, data_size, ch_num)
         # Limitter(-1 ~ 1)
         moddata = limmiter(moddata, data_size, ch_num)
         #############################
+
 
         # unpack chunk
         data_chunk = pack_data(moddata, data_size, ch_num)
@@ -148,7 +180,7 @@ def real_time_prosess(wavfile:str, CHUNK:int):
 
 if __name__ == '__main__':
 
-    wavfile="wav/sample_short_441.wav"
+    wavfile="RealTimeFunc/wav/sample_short_441.wav"
     CHUNK = 1024
     # 処理が間に合わないようなら
     # CHUNK = CHUNK*2
