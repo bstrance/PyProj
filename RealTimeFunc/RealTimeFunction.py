@@ -68,13 +68,13 @@ def pack_data(data:bytes, data_size:int, channel_number:int=0):
     _pack_data = struct.pack("h" * len(_pack_data), *_pack_data)
     return _pack_data
 
-def gain_make(data:bytes, data_size:int, ch_number:int=0):
+def gain_make(data:bytes, data_size:int, ch_number:int=0, gain:int=0.6):
     for l in range(data_size):
         if(ch_number == 2):
             for n in range(ch_number):
-                data[n][l] = data[n][l] * 0.6
+                data[n][l] = data[n][l] * gain
         elif(ch_number == 1):
-            data[l] = data[l] * 0.6
+            data[l] = data[l] * gain
         else:
             data = -1
             print("The number of channel is incorrect.")
