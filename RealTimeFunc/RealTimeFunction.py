@@ -2,8 +2,9 @@ import wave
 import pyaudio
 import struct
 import numpy as np
-from pylab import *
+#from pylab import *
 from effectpy import biQuad
+from stop_watch import stop_watch
 
 __author__ = "Hitoki Yamada"
 __status__ = "Prototype"
@@ -106,15 +107,33 @@ def limmiter(data:bytes, data_size:int, ch_number:int=0):
             print("The number of channel is incorrect.")
         return data
 
+# @stop_watch
+def iir_beta(data:bytes, data_size:int, coeff, ch_number:int=0):
+    for i in range(data_size):
+        moddata = data
+        if (ch_number == 2):
+            for j in range(ch_number):
+                moddata[j][i] = coeff[1][0] * data[j][i] + coeff[1][1] * data_buff[j][0] + coeff[1][2] \
+                                * data_buff[j][1] - coeff[0][1] * mod_buff[j][0] - coeff[0][2] * mod_buff[j][1]
+                data_buff[j][1] = data_buff[0][0]
+                data_buff[j][0] = moddata[0][i]
+        elif (ch_number == 1):
+            moddata[i] = coeff[1][0] * data[i] + coeff[1][1] * data_buff[0][0] + coeff[1][2] \
+                        * data_buff[0][1] - coeff[0][1] * mod_buff[0][0] - coeff[0][2] * mod_buff[0][1]
+            data_buff[0][1] = data_buff[0][0]
+            data_buff[0][0] = moddata[i]
+    return moddata
+
 def plot_wave(data):
     """ Plot wave for matplotlib"""
-    subplot(211)
-    plot(data)
-    axis([0, 140000, -1.0, 1.0])
-    subplot(212)
-    plot(data)
-    axis([0, 140000, -1.0, 1.0])
-    show()
+    # subplot(211)
+    # plot(data)
+    # axis([0, 140000, -1.0, 1.0])
+    # subplot(212)
+    # plot(data)
+    # axis([0, 140000, -1.0, 1.0])
+    # show()
+    pass
 
 def real_time_prosess(wavfile:str, CHUNK:int):
     """ Real time prosess.
@@ -141,20 +160,11 @@ def real_time_prosess(wavfile:str, CHUNK:int):
 
         # Entry original function#####
         moddata = data
-
         # Create Low pass filter coeff
-        # coeff = biQuad(f_rate).bq_lowpass(600, 0.7892)
-
-        # for i in range(data_size):
-        #     for j in range(ch_num):
-        #         moddata[j][i] = coeff[1][0] * data[j][i] + coeff[1][1] * data_buff[j][0] + coeff[1][2] \
-        #                     * data_buff[j][1] - coeff[0][1] * mod_buff[j][0] - coeff[0][2] * mod_buff[j][1]
-        #         data_buff[j][1] = data_buff[0][0]
-        #         data_buff[j][0] = moddata[0][i]
-        #         print(moddata)
-
+        coeff = biQuad(f_rate).bq_lowpass(600, 0.7892)
+        moddata = iir_beta(moddata, data_size, coeff, ch_num)
         #Gain make up
-        moddata = gain_make(moddata, data_size, ch_num)
+        # moddata = gain_make(moddata, data_size, ch_num)
         # Limitter(-1 ~ 1)
         moddata = limmiter(moddata, data_size, ch_num)
         #############################
@@ -176,7 +186,7 @@ def real_time_prosess(wavfile:str, CHUNK:int):
 
 if __name__ == '__main__':
 
-    wavfile="RealTimeFunc/wav/sample_short_441_mono.wav"
+    wavfile="RealTimeFunc/wav/sample_short_441.wav"
     CHUNK = 1024
     # 処理が間に合わないようなら
     # CHUNK = CHUNK*2
