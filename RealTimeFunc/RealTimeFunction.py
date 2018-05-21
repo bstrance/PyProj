@@ -70,7 +70,7 @@ def pack_data(data:bytes, data_size:int, channel_number:int=0):
 
 def gain_make(data:bytes, data_size:int, ch_number:int=0):
     for l in range(data_size):
-        if(ch_number != 1):
+        if(ch_number == 2):
             for n in range(ch_number):
                 data[n][l] = data[n][l] * 0.6
         elif(ch_number == 1):
@@ -88,27 +88,23 @@ def limmiter(data:bytes, data_size:int, ch_number:int=0):
         data_size : int\n
         ch_number : int\n
     """
-    if (ch_number == 2):
-        for i in range(data_size):
-            if  (data[0][i] < -1):
-                data[0][i] = -1
-            elif(data[0][i] > 1):
-                data[0][i] = 1
-        for j in range(data_size):
-            if  (data[1][j] < -1):
-                data[1][j] = -1
-            elif(data[1][j] > 1):
-                data[1][j] = 1
-    elif (ch_number == 1):
-        for k in range(data_size):
-            if  (data[k] < -1):
-                data[k] = -1
-            elif(data[k] > 1):
-                data[k] = 1
-    else:
-        data = -1
-        print("The number of channel is incorrect.")
-    return data
+    for i in range(data_size):
+        if (ch_number == 2):
+            for j in range(ch_number):
+                if (data[j][i] < -1):
+                    data[j][i] = -1
+                elif(data[j][i] > 1):
+                    data[j][i] = 1
+        elif (ch_number == 1):
+            for k in range(data_size):
+                if (data[k] < -1):
+                    data[k] = -1
+                elif(data[k] > 1):
+                    data[k] = 1
+        else:
+            data = -1
+            print("The number of channel is incorrect.")
+        return data
 
 def plot_wave(data):
     """ Plot wave for matplotlib"""
@@ -180,7 +176,7 @@ def real_time_prosess(wavfile:str, CHUNK:int):
 
 if __name__ == '__main__':
 
-    wavfile="RealTimeFunc/wav/sample_short_441.wav"
+    wavfile="RealTimeFunc/wav/sample_short_441_mono.wav"
     CHUNK = 1024
     # 処理が間に合わないようなら
     # CHUNK = CHUNK*2
