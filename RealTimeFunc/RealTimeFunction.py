@@ -2,8 +2,6 @@ import wave
 import pyaudio
 import struct
 import numpy as np
-# from pylab import *
-# import numba
 from effectpy import biQuad
 from stop_watch import stop_watch
 
@@ -32,12 +30,14 @@ def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
         return -1
     if(channel_number == 2): #STEREO
         _unpack_data = np.array([data_chunk[::2], data_chunk[1::2]])
+        _data_size = _unpack_data.shape[1]
     elif(channel_number == 1): #MONO
         _unpack_data = np.array(data_chunk)
+        _data_size = _unpack_data.size
     else:
         _unpack_data = -1
         print("The number of channel is incorrect.")
-    return _unpack_data
+    return _unpack_data, _data_size
 
 def pack_data(data, data_size:int, channel_number:int=0):
     """ packing data to binary chunk.
@@ -117,25 +117,13 @@ def iir_beta(data, data_size:int, coeff, ch_number:int=0):
                 mod_buff[j][1] = mod_buff[j][0]
                 mod_buff[j][0] = _moddata[j][i]
         elif (ch_number == 1):
-            moddata[i] = coeff[1][0] * data[i] + coeff[1][1] * data_buff[0][0] + coeff[1][2] \
+            _moddata[i] = coeff[1][0] * data[i] + coeff[1][1] * data_buff[0][0] + coeff[1][2] \
                         * data_buff[0][1] - coeff[0][1] * mod_buff[0][0] - coeff[0][2] * mod_buff[0][1]
             data_buff[0][1] = data_buff[0][0]
             data_buff[0][0] = _moddata[i]
             mod_buff[0][1] = mod_buff[0][0]
             mod_buff[0][0] = _moddata[i]
     return _moddata
-
-def plot_wave(data):
-    """ Plot wave for matplotlib"""
-    # subplot(211)
-    # plot(data)
-    # axis([0, 140000, -1.0, 1.0])
-    # subplot(212)
-    # plot(data)
-    # axis([0, 140000, -1.0, 1.0])
-    # show()
-    pass
-
 
 def real_time_prosess(wavfile:str, CHUNK:int):
     """ Real time prosess.
@@ -158,13 +146,13 @@ def real_time_prosess(wavfile:str, CHUNK:int):
     data_chunk = wf.readframes(CHUNK)
     while len(data_chunk) != 0:
         # Unpack chunk
-        data = unpack_chunk(data_chunk, CHUNK, ch_num)
+        data, data_size = unpack_chunk(data_chunk, CHUNK, ch_num)
 
         # Entry original function#####
         moddata = np.empty_like(data)
         # Create Low pass filter coeff
-        coeff = biQuad(f_rate).bq_lowpass(600, 0.7892)
-        moddata = iir_beta(data, data.shape[1], coeff, ch_num)
+        coeff = biQuad(f_rate).bq_lowpass(2700, 0.7892)
+        moddata = iir_beta(data, data_size, coeff, ch_num)
         #Gain make up
         # moddata = gain_make(moddata, data_size, ch_num)
         # Limitter(-1 ~ 1)
@@ -172,7 +160,7 @@ def real_time_prosess(wavfile:str, CHUNK:int):
         #############################
 
         # unpack chunk
-        data_chunk = pack_data(moddata, data.shape[1], ch_num)
+        data_chunk = pack_data(moddata, data_size, ch_num)
 
         if (data_chunk != -1):
             stream.write(data_chunk)
@@ -187,7 +175,7 @@ def real_time_prosess(wavfile:str, CHUNK:int):
 
 if __name__ == '__main__':
 
-    wavfile="wav/sample_short_441.wav"
+    wavfile="wav/sample_short_mono.wav"
     CHUNK = 1024
     # 処理が間に合わないようなら
     # CHUNK = CHUNK*2
