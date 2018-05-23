@@ -3,7 +3,7 @@ import pyaudio
 import struct
 import numpy as np
 from effectpy import biQuad
-from stop_watch import stop_watch
+from func_time import func_time
 
 __author__ = "Hitoki Yamada"
 __status__ = "Prototype"
@@ -12,6 +12,10 @@ __date__ = "2018.1.11"
 
 data_buff = np.array([[0.0, 0.0],[0.0, 0.0]]) # [[One before L,two before L],[[One before R,two before R]
 mod_buff = np.array([[0.0, 0.0],[0.0, 0.0]]) # [[One before L,two before L],[[One before R,two before R]
+
+def init():
+    """"""
+    data_buff, mod_buff = np.array([[0.0, 0.0],[0.0, 0.0]]), np.array([[0.0, 0.0],[0.0, 0.0]])
 
 def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
     """ Return chunk by Stereo or MONO depending on channel number.
@@ -23,8 +27,8 @@ def unpack_chunk(data_chunk:list, CHUNK:int=1024, channel_number:int=0):
         channel_number : int\n
     """
     # Unpack
-    # fromiter()より10^6倍アクセスが早い
     try:
+        # fromiter()より10^6倍アクセスが早い
         data_chunk = np.frombuffer(data_chunk, dtype="int16") / 32768.0 # Normalize -1~1
     except AttributeError:
         return -1
@@ -51,8 +55,7 @@ def pack_data(data, data_size:int, channel_number:int=0):
     if (channel_number == 2): #STEREO
         try:
             _pack_data = np.empty(data_size*2) # 2ch(LR)
-            _pack_data[::2] = data[0]
-            _pack_data[1::2] = data[1]
+            _pack_data[::2], _pack_data[1::2] = data[0], data[1]
         except ValueError:
             return -1
     elif (channel_number == 1): #MONO
@@ -67,62 +70,37 @@ def pack_data(data, data_size:int, channel_number:int=0):
     _pack_data = struct.pack("h" * len(_pack_data), *_pack_data)
     return _pack_data
 
-def gain_make(data, data_size:int, ch_number:int=0, gain:int=0.6):
-    for l in range(data_size):
-        if(ch_number == 2):
-            for n in range(ch_number):
-                data[n][l] = data[n][l] * gain
-        elif(ch_number == 1):
-            data[l] = data[l] * gain
-        else:
-            data = -1
-            print("The number of channel is incorrect.")
-    return data
-
-def limmiter(data, data_size:int, ch_number:int=0):
+def limmiter(data):
     """ Limmiter(-1 ~ 1) normalizing.
         Parameters
         ----------
         data    : bytes\n
-        data_size : int\n
-        ch_number : int\n
     """
-    for i in range(data_size):
-        if (ch_number == 2):
-            for j in range(ch_number):
-                if (data[j][i] < -1):
-                    data[j][i] = -1
-                elif(data[j][i] > 1):
-                    data[j][i] = 1
-        elif (ch_number == 1):
-            if (data[i] < -1):
-                data[i] = -1
-            elif(data[i] > 1):
-                data[i] = 1
-        else:
-            data = -1
-            print("The number of channel is incorrect.")
+    data = np.where(data<-1, -1, data)
+    data = np.where(data>1, 1, data)
     return data
 
-@stop_watch
-def iir_beta(data, data_size:int, coeff, ch_number:int=0):
+def iir(data, data_size:int, coeff, ch_number:int=0):
     _moddata= np.empty_like(data)
-    for i in range(data_size):
-        if (ch_number == 2):
-            for j in range(ch_number):
-                _moddata[j][i] = coeff[1][0] * data[j][i] + coeff[1][1] * data_buff[j][0] + coeff[1][2] \
-                                * data_buff[j][1] - coeff[0][1] * mod_buff[j][0] - coeff[0][2] * mod_buff[j][1]
-                data_buff[j][1] = data_buff[j][0]
-                data_buff[j][0] = _moddata[j][i]
-                mod_buff[j][1] = mod_buff[j][0]
-                mod_buff[j][0] = _moddata[j][i]
-        elif (ch_number == 1):
+    if (ch_number == 2):
+        _mod_buff_l_1, _data_buff_l_1, _mod_buff_l_2, _data_buff_l_2 = mod_buff[0][0], data_buff[0][0], mod_buff[0][1], data_buff[0][0]
+        _mod_buff_r_1, _data_buff_r_1, _mod_buff_r_2, _data_buff_r_2 = mod_buff[1][0], data_buff[1][0], mod_buff[1][1], data_buff[1][1]
+
+        for i in range(data_size):
+            _moddata[0][i] = coeff[1][0] * data[0][i] + coeff[1][1] * _data_buff_l_1 + coeff[1][2] * _data_buff_l_2 - coeff[0][1] * _mod_buff_l_1 - coeff[0][2] * _mod_buff_l_2
+            _moddata[1][i] = coeff[1][0] * data[1][i] + coeff[1][1] * _data_buff_r_1 + coeff[1][2] * _data_buff_r_2 - coeff[0][1] * _mod_buff_r_1 - coeff[0][2] * _mod_buff_r_2
+
+            _data_buff_l_2, _data_buff_r_2, _data_buff_l_1, _data_buff_r_1  = _data_buff_l_1, _data_buff_r_1, data[0][i], data[1][i]
+            _mod_buff_l_2, _mod_buff_r_2, _mod_buff_l_1, _mod_buff_r_1 = _mod_buff_l_1, _mod_buff_r_1, _moddata[0][i], _moddata[1][i]
+
+        mod_buff[0][0], data_buff[0][0], mod_buff[0][1], data_buff[0][0] = _mod_buff_l_1, _data_buff_l_1, _mod_buff_l_2, _data_buff_l_2
+        mod_buff[1][0], data_buff[1][0], mod_buff[1][1], data_buff[1][1] = _mod_buff_r_1, _data_buff_r_1, _mod_buff_r_2, _data_buff_r_2
+
+    elif (ch_number == 1):
+        for i in range(data_size):
             _moddata[i] = coeff[1][0] * data[i] + coeff[1][1] * data_buff[0][0] + coeff[1][2] \
                         * data_buff[0][1] - coeff[0][1] * mod_buff[0][0] - coeff[0][2] * mod_buff[0][1]
-            data_buff[0][1] = data_buff[0][0]
-            data_buff[0][0] = _moddata[i]
-            mod_buff[0][1] = mod_buff[0][0]
-            mod_buff[0][0] = _moddata[i]
+            data_buff[0][1], data_buff[0][0], mod_buff[0][1], mod_buff[0][0] = data_buff[0][0], _moddata[i], mod_buff[0][0], _moddata[i]
     return _moddata
 
 def real_time_prosess(wavfile:str, CHUNK:int):
@@ -151,31 +129,24 @@ def real_time_prosess(wavfile:str, CHUNK:int):
         # Entry original function#####
         moddata = np.empty_like(data)
         # Create Low pass filter coeff
-        coeff = biQuad(f_rate).bq_lowpass(2700, 0.7892)
-        moddata = iir_beta(data, data_size, coeff, ch_num)
-        #Gain make up
-        # moddata = gain_make(moddata, data_size, ch_num)
+        moddata = iir(data, data_size, biQuad(f_rate).bq_lowpass(600, 0.7892), ch_num)
+        #Gain make up(-6dB)
+        moddata = moddata*0.5
         # Limitter(-1 ~ 1)
-        # moddata = limmiter(moddata, data_size, ch_num)
+        moddata = limmiter(moddata)
         #############################
 
         # unpack chunk
         data_chunk = pack_data(moddata, data_size, ch_num)
-
-        if (data_chunk != -1):
-            stream.write(data_chunk)
-            data_chunk = wf.readframes(CHUNK)
-        else:
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
+        stream.write(data_chunk)
+        data_chunk = wf.readframes(CHUNK)
     stream.stop_stream()
     stream.close()
     p.terminate()
 
 if __name__ == '__main__':
 
-    wavfile="wav/sample_short_mono.wav"
+    wavfile="wav/sample_short_441.wav"
     CHUNK = 1024
     # 処理が間に合わないようなら
     # CHUNK = CHUNK*2
