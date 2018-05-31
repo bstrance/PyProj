@@ -73,15 +73,27 @@ def pack_data(data, data_size:int, channel_number:int=0):
     return _pack_data
 
 
-def limmiter(_data):
+def limmiter(data):
     """ Limmiter(-1 ~ 1) normalizing.
         Parameters
         ----------
         _data    : bytes\n
     """
-    _data = np.where(_data<-1, -1, _data)
-    _data = np.where(_data>1, 1, _data)
-    return _data
+    LIMMIT = 1.0
+    data[data<-LIMMIT] = -LIMMIT
+    data[data>LIMMIT] = LIMMIT
+    return data
+
+
+def exciter(data):
+    """ Limmiter(-1 ~ 1) normalizing.
+        Parameters
+        ----------
+        _data    : bytes\n
+    """
+    data = np.where(data<-0.08, data*0.7, data)
+    data = np.where(data>0.08, data*0.7, data)
+    return data
 
 
 def iir_vec(data, coeff, ch_number:int=0):
@@ -109,6 +121,9 @@ def coef_comb_r(sample, coeff1, coeff2, coeff3, coeff4, coeff5):
     data_buff[1][0], mod_buff[1][0] = sample, _comb
     return _comb
 
+
+def delay(_data):
+    pass
 
 def iir(data, data_size:int, coeff, ch_number:int=0):
     _moddata= np.empty_like(data)
@@ -153,16 +168,18 @@ def real_time_prosess(wavfile:str, CHUNK:int):
         data, data_size = unpack_chunk(data_chunk, CHUNK, ch_num)
 
         ### Entry original function#####
-        moddata = np.empty_like(data)
-        # Create Low pass filter coeff
-        moddata = iir(data, data_size, biQuad(f_rate).bq_lowpass(600, 0.7892), ch_num)
+        moddata = np.empty_like(data, dtype='float64')
+        moddata = data
+        ###iir #
+        # moddata = iir(data, data_size, biQuad(f_rate).bq_lowpass(600, 0.7892), ch_num)
         # moddata = iir_vec(data, biQuad(f_rate).bq_lowpass(600, 0.7892), ch_num)
-        # Gain make up(-6dB)
-        moddata = moddata*0.5
-        # Limitter(-1 ~ 1)
+        ###Gain make up(-6dB) #
+        # moddata = moddata*0.5
+        ###Limitter(-1 ~ 1) #
+        # moddata = exciter(data)
         moddata = limmiter(moddata)
         ################################
-        # unpack chunk
+        ###unpack chunk #
         data_chunk = pack_data(moddata, data_size, ch_num)
         stream.write(data_chunk)
         data_chunk = wf.readframes(CHUNK)
@@ -172,7 +189,7 @@ def real_time_prosess(wavfile:str, CHUNK:int):
 
 if __name__ == '__main__':
 
-    wavfile="wav/sample_short_441.wav"
+    wavfile="wav/sample.wav"
     CHUNK = 1024
     # 処理が間に合わないようなら
     # CHUNK = CHUNK*2
